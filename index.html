@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta id="theme-color-meta" name="theme-color" content="#08131c" />
+    <meta
+      name="description"
+      content="Leitura local de faturas de energia, com revisão dos dados e funcionamento offline."
+    />
+    <title>Energia Clara | Leitor de faturas</title>
+    <script>
+      const savedTheme = localStorage.getItem("energia-clara-theme");
+      document.documentElement.dataset.theme = savedTheme || (
+        window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"
+      );
+    </script>
+    <link rel="icon" type="image/svg+xml" href="./icon.svg" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="stylesheet" href="./src/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="./index.html" aria-label="Energia Clara, início">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 36 36" fill="none">
+              <path d="M20.2 3.5 8.5 19h8l-1 13.5L27.5 16h-8l.7-12.5Z" />
+            </svg>
+          </span>
+          <span>
+            <span class="brand-name">ENERGIA CLARA</span>
+            <span class="brand-caption">LEITURA DE FATURAS</span>
+          </span>
+        </a>
+        <nav class="top-nav" aria-label="Navegação principal">
+          <button class="nav-button active" type="button" data-view-target="extract">Extrair</button>
+          <button class="nav-button" type="button" data-view-target="settings">Configuração</button>
+          <a class="nav-button" href="./tutorial.html">Tutorial</a>
+        </nav>
+        <div class="topbar-actions">
+          <button id="install-button" class="button button-quiet" type="button" hidden>Instalar</button>
+          <button class="theme-toggle" type="button" data-theme-toggle aria-label="Ativar tema claro" title="Ativar tema claro">
+            <svg class="theme-icon icon-sun" viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="3.5"></circle>
+              <path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"></path>
+            </svg>
+            <svg class="theme-icon icon-moon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M20.2 15.1A8.4 8.4 0 0 1 8.9 3.8 8.5 8.5 0 1 0 20.2 15.1Z"></path>
+            </svg>
+            <span data-theme-label>Claro</span>
+          </button>
+          <span class="privacy-chip"><span class="privacy-dot"></span> Processamento local</span>
+        </div>
+      </header>
+
+      <main>
+        <section class="view active" id="extract-view" aria-labelledby="page-title">
+          <div class="hero">
+            <div class="hero-copy">
+              <p class="eyebrow">LEITURA LOCAL DE PDF · ARQUIVOS NÃO ENVIADOS</p>
+              <h1 id="page-title">Extração de dados <span>da fatura.</span></h1>
+              <p class="hero-description">
+                Selecione uma fatura em PDF, revise os campos identificados e copie os valores necessários.
+              </p>
+            </div>
+            <div class="hero-mark" aria-hidden="true">
+              <span class="hero-orbit orbit-one"></span>
+              <span class="hero-orbit orbit-two"></span>
+              <span class="hero-core"></span>
+              <span class="hero-cross cross-one"></span>
+              <span class="hero-cross cross-two"></span>
+            </div>
+          </div>
+
+          <div class="workspace-grid">
+            <section class="panel upload-panel" aria-labelledby="upload-title">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">ETAPA 01</p>
+                  <h2 id="upload-title">Selecione uma fatura</h2>
+                </div>
+                <span class="step-number">01</span>
+              </div>
+              <label class="dropzone" id="dropzone" for="pdf-input">
+                <input id="pdf-input" type="file" accept="application/pdf,.pdf" />
+                <span class="upload-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none">
+                    <path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M4 15v4h16v-4" />
+                  </svg>
+                </span>
+                <strong id="file-name">Arraste o PDF para cá</strong>
+                <span class="dropzone-hint">ou escolha um arquivo do seu dispositivo</span>
+                <span class="file-limit">PDF · arquivo processado apenas nesta página</span>
+              </label>
+              <button id="process-button" class="button button-primary button-wide" type="button" disabled>
+                <span class="button-symbol" aria-hidden="true">↗</span>
+                Analisar fatura
+              </button>
+              <div id="progress-region" class="progress-region" aria-live="polite" hidden>
+                <div class="progress-label">
+                  <span id="progress-message">Preparando leitura</span>
+                  <span id="progress-value"></span>
+                </div>
+                <div class="progress-track"><span id="progress-bar"></span></div>
+              </div>
+              <p id="app-status" class="status-message" role="status" aria-live="polite">
+                Seus arquivos não são enviados nem armazenados pela aplicação.
+              </p>
+            </section>
+
+            <section class="panel results-panel" aria-labelledby="results-title">
+              <div class="panel-heading results-heading">
+                <div>
+                  <p class="eyebrow">ETAPA 02</p>
+                  <h2 id="results-title">Dados da fatura</h2>
+                </div>
+                <span id="result-state" class="state-pill">Aguardando arquivo</span>
+              </div>
+
+              <div class="result-meta">
+                <div class="meta-item">
+                  <span class="meta-label">EMISSÃO</span>
+                  <strong id="issue-date">—</strong>
+                </div>
+                <div class="meta-item">
+                  <span class="meta-label">VENCIMENTO</span>
+                  <strong id="due-date">—</strong>
+                </div>
+                <div class="meta-item meta-wide">
+                  <span class="meta-label">BANDEIRA TARIFÁRIA</span>
+                  <strong id="tariff-flag">—</strong>
+                </div>
+              </div>
+
+              <div class="result-list" id="result-list" aria-live="polite">
+                <div class="empty-results">
+                  <span class="empty-line"></span>
+                  <span>Os resultados aparecerão aqui após a análise.</span>
+                </div>
+              </div>
+              <p class="review-note">
+                A extração é uma sugestão. Confira o trecho de origem e valide os valores com a fatura.
+              </p>
+            </section>
+          </div>
+
+          <section class="privacy-strip" aria-label="Privacidade">
+            <span class="privacy-shield" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none">
+                <path d="M12 3 19 6v5c0 4.5-2.8 7.7-7 10-4.2-2.3-7-5.5-7-10V6l7-3Z" />
+                <path d="m9 12 2 2 4-4" />
+              </svg>
+            </span>
+            <p><strong>Processamento local.</strong> PDF e OCR são processados neste navegador. A aplicação consulta a internet somente para carregar os arquivos do app e verificar atualizações.</p>
+            <button id="version-check" class="text-button" type="button">Verificar versão</button>
+          </section>
+          <div id="update-notice" class="update-notice" role="status" hidden></div>
+        </section>
+
+        <section class="view" id="settings-view" aria-labelledby="settings-title" hidden>
+          <div class="page-heading">
+            <p class="eyebrow">AJUSTES LOCAIS</p>
+            <h1 id="settings-title">Configuração de leitura</h1>
+            <p>Adapte os termos encontrados na fatura. Os ajustes ficam neste navegador e podem ser exportados.</p>
+          </div>
+          <div class="settings-toolbar panel">
+            <div>
+              <h2>Regras dos campos</h2>
+              <p>Use termos que apareçam na mesma linha do dado. Para números, a posição começa em zero; -1 indica o último número da linha.</p>
+            </div>
+            <div class="settings-actions">
+              <button id="export-config" class="button button-quiet" type="button">Exportar regras</button>
+              <label class="button button-quiet import-button" for="import-config">Importar regras</label>
+              <input id="import-config" type="file" accept="application/json,.json" hidden />
+            </div>
+          </div>
+          <div id="config-fields" class="config-grid"></div>
+          <div class="settings-footer">
+            <p id="config-status" class="status-message" role="status"></p>
+            <div class="settings-actions">
+              <button id="reset-config" class="button button-quiet" type="button">Restaurar padrões</button>
+              <button id="save-config" class="button button-primary" type="button">Salvar configuração</button>
+            </div>
+          </div>
+          <section class="panel ocr-panel">
+            <div>
+              <p class="eyebrow">LEITURA DE PDF DIGITALIZADO</p>
+              <h2>Preparar OCR para uso offline</h2>
+              <p>O mecanismo e os modelos em português e inglês serão carregados uma vez e ficarão disponíveis no cache deste navegador. Não envie documentos durante essa preparação.</p>
+            </div>
+            <button id="prepare-ocr" class="button button-quiet" type="button">Preparar OCR</button>
+          </section>
+        </section>
+      </main>
+
+      <footer class="site-footer">
+        <span>ENERGIA CLARA <span class="footer-divider">/</span> FERRAMENTA LOCAL</span>
+        <span id="app-version">VERSÃO 1.0.0</span>
+      </footer>
+    </div>
+    <script type="module" src="./src/theme.js"></script>
+    <script type="module" src="./src/app.js"></script>
+  </body>
+</html>

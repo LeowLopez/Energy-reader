@@ -1,0 +1,22 @@
+{
+  "name": "energy-reader",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "predev": "node scripts/copy-runtime-assets.mjs",
+    "dev": "vite",
+    "build": "node scripts/copy-runtime-assets.mjs && vite build",
+    "postbuild": "node scripts/finalize-build.mjs",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@tesseract.js-data/eng": "1.0.0",
+    "@tesseract.js-data/por": "1.0.0",
+    "pdfjs-dist": "4.8.69",
+    "tesseract.js": "5.1.1"
+  },
+  "devDependencies": {
+    "vite": "6.4.5"
+  }
+}

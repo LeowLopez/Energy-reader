@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta id="theme-color-meta" name="theme-color" content="#08131c" />
+    <meta name="description" content="Como usar o Energia Clara com privacidade e revisar a extração da fatura." />
+    <title>Tutorial | Energia Clara</title>
+    <script>
+      const savedTheme = localStorage.getItem("energia-clara-theme");
+      document.documentElement.dataset.theme = savedTheme || (
+        window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"
+      );
+    </script>
+    <link rel="icon" type="image/svg+xml" href="./icon.svg" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="stylesheet" href="./src/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="./index.html" aria-label="Energia Clara, início">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 36 36" fill="none">
+              <path d="M20.2 3.5 8.5 19h8l-1 13.5L27.5 16h-8l.7-12.5Z" />
+            </svg>
+          </span>
+          <span><span class="brand-name">ENERGIA CLARA</span><span class="brand-caption">LEITURA DE FATURAS</span></span>
+        </a>
+        <nav class="top-nav" aria-label="Navegação principal">
+          <a class="nav-button" href="./index.html">Extrair</a>
+          <a class="nav-button" href="./index.html#configuracao">Configuração</a>
+          <a class="nav-button active" href="./tutorial.html" aria-current="page">Tutorial</a>
+        </nav>
+        <div class="topbar-actions">
+          <button class="theme-toggle" type="button" data-theme-toggle aria-label="Ativar tema claro" title="Ativar tema claro">
+            <svg class="theme-icon icon-sun" viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="3.5"></circle>
+              <path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"></path>
+            </svg>
+            <svg class="theme-icon icon-moon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M20.2 15.1A8.4 8.4 0 0 1 8.9 3.8 8.5 8.5 0 1 0 20.2 15.1Z"></path>
+            </svg>
+            <span data-theme-label>Claro</span>
+          </button>
+          <span class="privacy-chip"><span class="privacy-dot"></span> Processamento local</span>
+        </div>
+      </header>
+      <main class="tutorial-main">
+        <div class="page-heading tutorial-heading">
+          <p class="eyebrow">INSTRUÇÕES</p>
+          <h1>Como usar o <span>leitor de faturas.</span></h1>
+          <p>Instruções para analisar PDFs, revisar os campos extraídos, configurar regras e usar o aplicativo offline.</p>
+        </div>
+        <div class="tutorial-layout">
+          <aside class="tutorial-index panel">
+            <p class="eyebrow">NESTA PÁGINA</p>
+            <a href="#processo">Processar uma fatura</a>
+            <a href="#revisao">Conferir os resultados</a>
+            <a href="#configuracao">Ajustar regras</a>
+            <a href="#offline">Instalar e usar offline</a>
+            <a href="#privacidade">Privacidade e limitações</a>
+          </aside>
+          <div class="tutorial-content">
+            <section class="guide-section panel" id="processo">
+              <span class="guide-index">01</span>
+              <div>
+                <p class="eyebrow">ANÁLISE</p>
+                <h2>Processar uma fatura</h2>
+                <ol>
+                  <li>Abra <a href="./index.html">Extrair</a> e selecione um arquivo PDF.</li>
+                  <li>Escolha <strong>Analisar fatura</strong>. PDFs com texto selecionável são lidos diretamente; páginas digitalizadas são processadas por OCR.</li>
+                  <li>Aguarde a conclusão. No primeiro uso do OCR, o navegador pode precisar baixar os modelos de idioma.</li>
+                </ol>
+              </div>
+            </section>
+            <section class="guide-section panel" id="revisao">
+              <span class="guide-index">02</span>
+              <div>
+                <p class="eyebrow">VALIDAÇÃO</p>
+                <h2>Conferir antes de copiar</h2>
+                <p>Os campos copiáveis mantêm a ordem exibida. Em cada resultado, abra o trecho de origem e compare-o com a fatura. Campos não encontrados ficam sem valor; não são preenchidos automaticamente com zero. Em documentos digitalizados, erros de OCR são possíveis, então confira cada número e cada separador decimal.</p>
+                <p>Data de emissão, vencimento e bandeira tarifária são informativos e não têm ação de cópia.</p>
+              </div>
+            </section>
+            <section class="guide-section panel" id="configuracao">
+              <span class="guide-index">03</span>
+              <div>
+                <p class="eyebrow">PERSONALIZAÇÃO</p>
+                <h2>Ajustar regras de leitura</h2>
+                <p>Em <strong>Configuração</strong>, ajuste os termos que identificam cada campo. Informe um termo por linha e escolha se deve usar o primeiro valor, o último ou a soma dos valores correspondentes. A posição numérica indica qual número da linha usar (começando em 0); use <code>-1</code> para o último.</p>
+                <p>Se o valor não estiver disponível em uma linha, pode-se configurar um valor fixo. Exporte as regras para guardá-las ou importá-las em outro navegador. As configurações ficam no armazenamento local do navegador até serem limpas ou exportadas.</p>
+              </div>
+            </section>
+            <section class="guide-section panel" id="offline">
+              <span class="guide-index">04</span>
+              <div>
+                <p class="eyebrow">ACESSO</p>
+                <h2>Instalar e usar offline</h2>
+                <p>No Edge ou Chrome, abra a aplicação pela página publicada e escolha <strong>Instalar</strong> na barra superior ou pelo menu do navegador. Depois de carregar a aplicação e preparar o OCR online uma vez, os arquivos do app e os modelos ficam disponíveis no cache para uso offline.</p>
+                <p>A instalação e o cache offline dependem de uma origem segura (como GitHub Pages em HTTPS); abrir os arquivos diretamente como <code>file://</code> não oferece o mesmo suporte.</p>
+              </div>
+            </section>
+            <section class="guide-section panel" id="privacidade">
+              <span class="guide-index">05</span>
+              <div>
+                <p class="eyebrow">TRANSPARÊNCIA</p>
+                <h2>Privacidade e limitações</h2>
+                <p>Use o seletor de tema na barra superior para alternar entre as aparências clara e escura. A escolha fica salva neste navegador.</p>
+                <p>A fatura é lida dentro do navegador. O aplicativo não envia o documento, os resultados ou as regras a um servidor e não usa analytics. A hospedagem e a verificação de versão precisam de conexão; o OCR também baixa os modelos do próprio site na primeira utilização.</p>
+                <p>Faturas variam por distribuidora, país e período. A leitura automática não é garantia de correção universal: revise os trechos correspondentes e ajuste as regras quando necessário. PDFs protegidos por senha, danificados ou com baixa qualidade podem não ser lidos corretamente.</p>
+              </div>
+            </section>
+          </div>
+        </div>
+      </main>
+      <footer class="site-footer"><span>ENERGIA CLARA <span class="footer-divider">/</span> GUIA DE USO</span><a href="./index.html">Voltar à aplicação</a></footer>
+    </div>
+    <script type="module" src="./src/theme.js"></script>
+  </body>
+</html>

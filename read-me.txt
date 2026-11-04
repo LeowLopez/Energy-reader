@@ -1,0 +1,56 @@
+ENERGIA CLARA - LEITOR DE FATURAS
+
+Aplicacao web estatica para leitura local de faturas de energia. A fatura,
+os resultados e as regras nao sao enviados a um servidor. O site consulta a
+internet para carregar a aplicacao, obter modelos de OCR na primeira utilizacao
+e verificar atualizacoes.
+
+DESENVOLVIMENTO
+
+1. Instale o Node.js 18 ou superior.
+2. Na pasta do projeto, execute:
+
+   npm ci
+   npm run dev
+
+3. Abra o endereco local exibido pelo Vite.
+
+TESTES E BUILD
+
+   npm test
+   npm run build
+
+O build gera a pasta dist. O workflow em .github/workflows/pages.yml publica
+esse conteudo no GitHub Pages quando ha um push para main. Em Settings >
+Pages, selecione GitHub Actions como origem de publicacao.
+
+PRIVACIDADE E USO OFFLINE
+
+- PDFs com texto selecionavel sao lidos no navegador.
+- Paginas digitalizadas usam OCR em portugues e ingles no proprio navegador.
+- O primeiro uso de OCR exige conexao para carregar os arquivos do mecanismo e
+  os modelos. A tela Configuracao oferece a preparacao antes do uso offline.
+- Instale pelo Edge ou Chrome depois de abrir o site por HTTPS. A aplicacao
+  pode funcionar offline depois que os arquivos da pagina e os modelos OCR
+  estiverem no cache.
+- A verificacao de versao consulta version.json na hospedagem. Nenhum PDF,
+  resultado ou regra e incluido nessa consulta.
+- A instalacao PWA e o cache offline nao estao disponiveis ao abrir os arquivos
+  diretamente como file://.
+
+CONFIGURACAO
+
+A tela Configuracao permite ajustar os termos identificadores, a posicao do
+numero na linha, a operacao (primeiro, ultimo ou soma) e valores fixos. As regras
+ficam no armazenamento local do navegador; use Exportar regras para fazer
+backup ou transferi-las para outro dispositivo.
+O seletor na barra superior alterna entre os temas claro e escuro e salva a
+preferencia neste navegador.
+
+CONFIANCA DOS RESULTADOS
+
+A leitura automatica e uma sugestao, nao uma garantia universal. Os formatos de
+fatura variam por distribuidora e pais. Confira os trechos de origem, revise
+valores e separadores decimais, e ajuste as regras quando um campo nao for
+localizado. Campos ausentes permanecem sem valor; nao sao convertidos em zero.
+PDFs protegidos, danificados ou de baixa qualidade podem nao ser processados.

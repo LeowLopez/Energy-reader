@@ -1,0 +1,9 @@
+/build
+/dist
+/venv
+*.pdf
+*.spec
+/node_modules
+/coverage
+/public/tessdata
+/public/tesseract

@@ -1,0 +1,603 @@
+import * as pdfjsLib from "pdfjs-dist";
+import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+import { createWorker, OEM } from "tesseract.js";
+import packageInfo from "../package.json";
+import "./theme.js";
+import {
+  FIELD_DEFINITIONS,
+  INFO_DEFINITIONS,
+  STORAGE_KEY,
+  createDefaultConfig,
+  extractInvoice,
+  validateConfig,
+} from "./extraction.js";
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+
+const BASE_URL = import.meta.env.BASE_URL;
+const APP_ROOT = new URL(BASE_URL, window.location.origin);
+const appAssetUrl = (path) => new URL(path, APP_ROOT).href;
+const ui = {
+  fileInput: document.querySelector("#pdf-input"),
+  fileName: document.querySelector("#file-name"),
+  dropzone: document.querySelector("#dropzone"),
+  processButton: document.querySelector("#process-button"),
+  appStatus: document.querySelector("#app-status"),
+  progressRegion: document.querySelector("#progress-region"),
+  progressMessage: document.querySelector("#progress-message"),
+  progressValue: document.querySelector("#progress-value"),
+  progressBar: document.querySelector("#progress-bar"),
+  resultState: document.querySelector("#result-state"),
+  resultList: document.querySelector("#result-list"),
+  issueDate: document.querySelector("#issue-date"),
+  dueDate: document.querySelector("#due-date"),
+  tariffFlag: document.querySelector("#tariff-flag"),
+  configFields: document.querySelector("#config-fields"),
+  configStatus: document.querySelector("#config-status"),
+  updateNotice: document.querySelector("#update-notice"),
+};
+
+let selectedFile = null;
+let currentConfig = loadConfig();
+let ocrWorkerPromise = null;
+let installPrompt = null;
+let updateRegistration = null;
+
+document.querySelector("#app-version").textContent = `VERSÃO ${packageInfo.version}`;
+renderConfig();
+bindNavigation();
+bindFileSelection();
+bindConfigurationActions();
+bindUpdateCheck();
+bindInstallPrompt();
+registerServiceWorker();
+if (location.hash === "#configuracao") showView("settings");
+
+function loadConfig() {
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (!saved) return createDefaultConfig();
+  try {
+    return validateConfig(JSON.parse(saved));
+  } catch (error) {
+    ui.appStatus.textContent = `As regras salvas não puderam ser usadas: ${error.message} Restaure os padrões ou importe um arquivo válido.`;
+    return createDefaultConfig();
+  }
+}
+
+function bindNavigation() {
+  document.querySelectorAll("[data-view-target]").forEach((button) => {
+    button.addEventListener("click", () => showView(button.dataset.viewTarget));
+  });
+}
+
+function showView(name) {
+  const extractActive = name === "extract";
+  document.querySelector("#extract-view").hidden = !extractActive;
+  document.querySelector("#settings-view").hidden = extractActive;
+  document.querySelector("#extract-view").classList.toggle("active", extractActive);
+  document.querySelector("#settings-view").classList.toggle("active", !extractActive);
+  document.querySelectorAll("[data-view-target]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.viewTarget === name);
+  });
+  if (name === "settings") history.replaceState(null, "", `${location.pathname}#configuracao`);
+  else history.replaceState(null, "", location.pathname);
+}
+
+function bindFileSelection() {
+  ui.fileInput.addEventListener("change", () => setSelectedFile(ui.fileInput.files[0]));
+  ui.processButton.addEventListener("click", processSelectedFile);
+
+  for (const eventName of ["dragenter", "dragover"]) {
+    ui.dropzone.addEventListener(eventName, (event) => {
+      event.preventDefault();
+      ui.dropzone.classList.add("drag-over");
+    });
+  }
+  for (const eventName of ["dragleave", "drop"]) {
+    ui.dropzone.addEventListener(eventName, (event) => {
+      event.preventDefault();
+      ui.dropzone.classList.remove("drag-over");
+    });
+  }
+  ui.dropzone.addEventListener("drop", (event) => {
+    const file = [...(event.dataTransfer?.files ?? [])].find((item) =>
+      item.type === "application/pdf" || item.name.toLowerCase().endsWith(".pdf"),
+    );
+    if (file) setSelectedFile(file);
+    else setStatus("Selecione um arquivo PDF.", "error");
+  });
+}
+
+function setSelectedFile(file) {
+  if (!file) {
+    selectedFile = null;
+    ui.processButton.disabled = true;
+    ui.fileName.textContent = "Arraste o PDF para cá";
+    return;
+  }
+  if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+    selectedFile = null;
+    ui.processButton.disabled = true;
+    ui.fileName.textContent = "Arraste o PDF para cá";
+    setStatus("O arquivo selecionado não parece ser um PDF.", "error");
+    return;
+  }
+  selectedFile = file;
+  ui.fileName.textContent = file.name;
+  ui.processButton.disabled = false;
+  ui.resultState.textContent = "Pronto para analisar";
+  ui.resultState.className = "state-pill";
+  setStatus("Arquivo selecionado. Ele será processado apenas neste navegador.");
+}
+
+async function processSelectedFile() {
+  if (!selectedFile) return;
+  setBusy(true);
+  clearResults();
+  try {
+    setProgress("Lendo o documento", 0);
+    const lines = await readPdfLines(selectedFile);
+    if (!lines.length) throw new Error("Não foi possível reconhecer texto ou imagem legível neste PDF.");
+    const result = extractInvoice(lines, currentConfig);
+    renderResults(result);
+    ui.resultState.textContent = "Revisão necessária";
+    ui.resultState.className = "state-pill state-review";
+    const found = Object.values(result.fields).filter((field) => field.value !== null).length;
+    setStatus(`Leitura concluída. ${found} de ${FIELD_DEFINITIONS.length} campos numéricos foram localizados; confira os trechos antes de copiar.`);
+  } catch (error) {
+    ui.resultState.textContent = "Leitura não concluída";
+    ui.resultState.className = "state-pill state-error";
+    setStatus(`Não foi possível processar a fatura: ${error.message}`, "error");
+  } finally {
+    setBusy(false);
+  }
+}
+
+async function readPdfLines(file) {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const pdf = await pdfjsLib.getDocument({ data: bytes }).promise;
+  const allLines = [];
+  try {
+    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+      setProgress(`Lendo página ${pageNumber} de ${pdf.numPages}`, (pageNumber - 1) / pdf.numPages);
+      const page = await pdf.getPage(pageNumber);
+      const textContent = await page.getTextContent();
+      const pageLines = textItemsToLines(textContent.items);
+      const readableText = pageLines.join(" ").replace(/\s/g, "");
+      if (readableText.length >= 20) {
+        allLines.push(...pageLines);
+      } else {
+        const ocrLines = await recognizePage(page, pageNumber, pdf.numPages);
+        allLines.push(...ocrLines);
+      }
+    }
+  } finally {
+    await pdf.destroy();
+  }
+  return allLines.filter((line) => line.trim());
+}
+
+function textItemsToLines(items) {
+  const positioned = items
+    .filter((item) => typeof item.str === "string" && item.str.trim())
+    .map((item) => ({
+      text: item.str,
+      x: item.transform?.[4] ?? 0,
+      y: item.transform?.[5] ?? 0,
+    }))
+    .sort((left, right) => right.y - left.y || left.x - right.x);
+  const groups = [];
+  for (const item of positioned) {
+    let group = groups.find((candidate) => Math.abs(candidate.y - item.y) <= 2.5);
+    if (!group) {
+      group = { y: item.y, items: [] };
+      groups.push(group);
+    }
+    group.items.push(item);
+  }
+  return groups
+    .sort((left, right) => right.y - left.y)
+    .map((group) => group.items.sort((left, right) => left.x - right.x).map((item) => item.text).join(" ").replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+}
+
+async function getOcrWorker() {
+  if (!ocrWorkerPromise) {
+    ocrWorkerPromise = createWorker("por+eng", OEM.LSTM_ONLY, {
+      workerPath: appAssetUrl("tesseract/worker.min.js"),
+      corePath: appAssetUrl("tesseract/"),
+      langPath: appAssetUrl("tessdata/"),
+      cacheMethod: "write",
+      logger: (event) => {
+        if (event.status === "recognizing text") {
+          setProgress(`OCR: ${Math.round((event.progress ?? 0) * 100)}%`, event.progress ?? 0);
+        } else if (event.status) {
+          setProgress(`Preparando OCR: ${event.status}`, event.progress ?? 0);
+        }
+      },
+    });
+  }
+  try {
+    return await ocrWorkerPromise;
+  } catch (error) {
+    ocrWorkerPromise = null;
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new Error(`OCR indisponível. Conecte-se à internet uma vez para carregar os modelos e tente novamente. Detalhe: ${reason}`);
+  }
+}
+
+async function recognizePage(page, pageNumber, totalPages) {
+  const viewport = page.getViewport({ scale: 1 });
+  const scale = Math.min(2, 2600 / Math.max(viewport.width, viewport.height));
+  const canvas = document.createElement("canvas");
+  const scaledViewport = page.getViewport({ scale: Math.max(1, scale) });
+  canvas.width = Math.ceil(scaledViewport.width);
+  canvas.height = Math.ceil(scaledViewport.height);
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) throw new Error("O navegador não conseguiu preparar a página para OCR.");
+  await page.render({ canvasContext: context, viewport: scaledViewport }).promise;
+  setProgress(`Reconhecendo imagem ${pageNumber} de ${totalPages}`, pageNumber / totalPages);
+  const worker = await getOcrWorker();
+  const result = await worker.recognize(canvas);
+  canvas.width = 0;
+  canvas.height = 0;
+  return result.data.text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+}
+
+function renderResults(result) {
+  ui.resultList.replaceChildren();
+  for (const definition of FIELD_DEFINITIONS) {
+    const field = result.fields[definition.id];
+    const card = document.createElement("article");
+    card.className = "result-row";
+    const content = document.createElement("div");
+    content.className = "result-value";
+    const label = document.createElement("label");
+    label.className = "result-label";
+    label.htmlFor = `result-${definition.id}`;
+    label.textContent = definition.label;
+    const input = document.createElement("input");
+    input.id = `result-${definition.id}`;
+    input.className = "result-input";
+    input.type = "text";
+    input.inputMode = definition.kind === "currency" ? "decimal" : "decimal";
+    input.autocomplete = "off";
+    input.spellcheck = false;
+    input.value = field.value === null ? "" : formatFieldValue(field.value, definition.kind);
+    input.placeholder = "Não localizado — informe ou ajuste as regras";
+    input.setAttribute("aria-label", `${definition.label}; revise ou edite o valor`);
+    input.addEventListener("input", () => {
+      card.classList.toggle("manual-entry", input.value.length > 0);
+      card.classList.toggle("missing-result", input.value.length === 0);
+    });
+    content.append(label, input);
+    const copy = document.createElement("button");
+    copy.className = "copy-button";
+    copy.type = "button";
+    copy.textContent = "Copiar";
+    copy.setAttribute("aria-label", `Copiar ${definition.label}`);
+    copy.addEventListener("click", () => copyField(input, copy));
+    const origin = document.createElement("details");
+    origin.className = "source-detail";
+    const summary = document.createElement("summary");
+    summary.textContent = field.status === "fixed" ? "Valor fixo nas regras" : field.sourceLine ? "Ver trecho identificado" : "Sem trecho identificado";
+    const source = document.createElement("pre");
+    source.textContent = field.sourceLine || "Nenhum trecho correspondente foi encontrado.";
+    origin.append(summary, source);
+    card.append(content, copy, origin);
+    if (field.value === null) card.classList.add("missing-result");
+    ui.resultList.append(card);
+  }
+  ui.issueDate.textContent = result.info.issueDate.value || "Não localizado";
+  ui.dueDate.textContent = result.info.dueDate.value || "Não localizado";
+  ui.tariffFlag.textContent = result.info.tariffFlag.value || "Não localizada";
+  for (const definition of INFO_DEFINITIONS) {
+    const item = result.info[definition.id];
+    const target = definition.id === "issueDate" ? ui.issueDate : definition.id === "dueDate" ? ui.dueDate : ui.tariffFlag;
+    target.title = item.sourceLine || "Nenhum trecho correspondente foi encontrado.";
+  }
+}
+
+function clearResults() {
+  ui.resultList.replaceChildren();
+  for (const target of [ui.issueDate, ui.dueDate, ui.tariffFlag]) {
+    target.textContent = "—";
+    target.removeAttribute("title");
+  }
+  ui.resultState.textContent = "Analisando";
+  ui.resultState.className = "state-pill state-progress";
+}
+
+function formatFieldValue(value, kind) {
+  const options = kind === "currency"
+    ? { style: "currency", currency: "BRL", minimumFractionDigits: 2, maximumFractionDigits: 2 }
+    : { minimumFractionDigits: 3, maximumFractionDigits: 3 };
+  return new Intl.NumberFormat("pt-BR", options).format(value);
+}
+
+async function copyField(input, button) {
+  const value = input.value.trim();
+  if (!value) {
+    setStatus("Não há valor para copiar. Revise ou preencha o campo primeiro.", "error");
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(value);
+    button.textContent = "Copiado";
+    setTimeout(() => { button.textContent = "Copiar"; }, 1600);
+  } catch (error) {
+    setStatus(`Não foi possível copiar automaticamente: ${error.message}. Selecione e copie o valor manualmente.`, "error");
+  }
+}
+
+function renderConfig() {
+  ui.configFields.replaceChildren();
+  for (const definition of FIELD_DEFINITIONS) {
+    const rule = currentConfig.fields[definition.id];
+    const card = document.createElement("fieldset");
+    card.className = "config-card";
+    const legend = document.createElement("legend");
+    legend.textContent = definition.label;
+    const termsLabel = document.createElement("label");
+    termsLabel.className = "form-label";
+    termsLabel.textContent = "Termos da linha (um por linha)";
+    const terms = document.createElement("textarea");
+    terms.rows = 3;
+    terms.value = rule.aliases.join("\n");
+    terms.dataset.field = definition.id;
+    terms.dataset.property = "aliases";
+    termsLabel.append(terms);
+    const controls = document.createElement("div");
+    controls.className = "config-controls";
+    const operationLabel = document.createElement("label");
+    operationLabel.className = "form-label";
+    operationLabel.textContent = "Como combinar";
+    const operation = document.createElement("select");
+    operation.dataset.field = definition.id;
+    operation.dataset.property = "operation";
+    for (const [value, text] of [["first", "Primeiro resultado"], ["last", "Último resultado"], ["sum", "Somar resultados"]]) {
+      const option = new Option(text, value);
+      operation.add(option);
+    }
+    operation.value = rule.operation;
+    operationLabel.append(operation);
+    const indexLabel = document.createElement("label");
+    indexLabel.className = "form-label";
+    indexLabel.textContent = "Posição do número";
+    const numberIndex = document.createElement("input");
+    numberIndex.type = "number";
+    numberIndex.min = "-1";
+    numberIndex.max = "50";
+    numberIndex.step = "1";
+    numberIndex.value = rule.valueIndex;
+    numberIndex.dataset.field = definition.id;
+    numberIndex.dataset.property = "valueIndex";
+    indexLabel.append(numberIndex);
+    controls.append(operationLabel, indexLabel);
+    const fixedLabel = document.createElement("label");
+    fixedLabel.className = "form-label fixed-value-label";
+    fixedLabel.textContent = "Valor fixo (opcional)";
+    const fixedValue = document.createElement("input");
+    fixedValue.type = "text";
+    fixedValue.inputMode = "decimal";
+    fixedValue.placeholder = "Em branco para extrair do PDF";
+    fixedValue.value = rule.fixedValue ?? "";
+    fixedValue.dataset.field = definition.id;
+    fixedValue.dataset.property = "fixedValue";
+    fixedLabel.append(fixedValue);
+    card.append(legend, termsLabel, controls, fixedLabel);
+    ui.configFields.append(card);
+  }
+  const infoCard = document.createElement("fieldset");
+  infoCard.className = "config-card config-card-info";
+  const legend = document.createElement("legend");
+  legend.textContent = "Datas e bandeira tarifária";
+  infoCard.append(legend);
+  for (const definition of INFO_DEFINITIONS) {
+    const label = document.createElement("label");
+    label.className = "form-label";
+    label.textContent = `${definition.label} · termos (um por linha)`;
+    const textarea = document.createElement("textarea");
+    textarea.rows = 2;
+    textarea.value = currentConfig.info[definition.id].aliases.join("\n");
+    textarea.dataset.info = definition.id;
+    textarea.dataset.property = "aliases";
+    label.append(textarea);
+    infoCard.append(label);
+  }
+  ui.configFields.append(infoCard);
+}
+
+function readConfigForm() {
+  const config = structuredClone(currentConfig);
+  document.querySelectorAll("[data-field]").forEach((input) => {
+    const rule = config.fields[input.dataset.field];
+    const property = input.dataset.property;
+    if (property === "aliases") rule.aliases = input.value.split(/\r?\n/).map((term) => term.trim()).filter(Boolean);
+    else if (property === "valueIndex") rule.valueIndex = Number(input.value);
+    else rule[property] = input.value;
+  });
+  document.querySelectorAll("[data-info]").forEach((input) => {
+    config.info[input.dataset.info].aliases = input.value.split(/\r?\n/).map((term) => term.trim()).filter(Boolean);
+  });
+  return validateConfig(config);
+}
+
+function bindConfigurationActions() {
+  document.querySelector("#save-config").addEventListener("click", () => {
+    try {
+      currentConfig = readConfigForm();
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(currentConfig));
+      ui.configStatus.textContent = "Configuração salva apenas neste navegador.";
+      ui.configStatus.className = "status-message status-success";
+    } catch (error) {
+      ui.configStatus.textContent = `Configuração não salva: ${error.message}`;
+      ui.configStatus.className = "status-message status-error";
+    }
+  });
+  document.querySelector("#reset-config").addEventListener("click", () => {
+    currentConfig = createDefaultConfig();
+    localStorage.removeItem(STORAGE_KEY);
+    renderConfig();
+    ui.configStatus.textContent = "Regras padrão restauradas.";
+    ui.configStatus.className = "status-message status-success";
+  });
+  document.querySelector("#export-config").addEventListener("click", () => {
+    try {
+      const config = readConfigForm();
+      downloadJson(config, "energia-clara-regras.json");
+      ui.configStatus.textContent = "Arquivo de regras exportado.";
+      ui.configStatus.className = "status-message status-success";
+    } catch (error) {
+      ui.configStatus.textContent = `Não foi possível exportar: ${error.message}`;
+      ui.configStatus.className = "status-message status-error";
+    }
+  });
+  document.querySelector("#import-config").addEventListener("change", importConfig);
+  document.querySelector("#prepare-ocr").addEventListener("click", prepareOcr);
+}
+
+async function importConfig(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  try {
+    const imported = validateConfig(JSON.parse(await file.text()));
+    currentConfig = imported;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(currentConfig));
+    renderConfig();
+    ui.configStatus.textContent = "Regras importadas e salvas neste navegador.";
+    ui.configStatus.className = "status-message status-success";
+  } catch (error) {
+    ui.configStatus.textContent = `Arquivo de regras inválido: ${error.message}`;
+    ui.configStatus.className = "status-message status-error";
+  } finally {
+    event.target.value = "";
+  }
+}
+
+async function prepareOcr() {
+  const button = document.querySelector("#prepare-ocr");
+  button.disabled = true;
+  try {
+    setProgress("Baixando modelos locais de OCR", 0);
+    ui.progressRegion.hidden = false;
+    await getOcrWorker();
+    ui.configStatus.textContent = "OCR preparado. Os modelos em português e inglês foram carregados neste navegador.";
+    ui.configStatus.className = "status-message status-success";
+  } catch (error) {
+    ui.configStatus.textContent = `Não foi possível preparar o OCR: ${error.message}`;
+    ui.configStatus.className = "status-message status-error";
+  } finally {
+    ui.progressRegion.hidden = true;
+    button.disabled = false;
+  }
+}
+
+function downloadJson(value, filename) {
+  const blob = new Blob([JSON.stringify(value, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+function setBusy(isBusy) {
+  ui.fileInput.disabled = isBusy;
+  ui.processButton.disabled = isBusy || !selectedFile;
+  ui.progressRegion.hidden = !isBusy;
+  if (!isBusy) {
+    ui.progressBar.style.width = "100%";
+    setTimeout(() => { ui.progressRegion.hidden = true; }, 700);
+  }
+}
+
+function setProgress(message, progress) {
+  ui.progressMessage.textContent = message;
+  ui.progressValue.textContent = `${Math.round(Math.max(0, Math.min(1, progress)) * 100)}%`;
+  ui.progressBar.style.width = `${Math.round(Math.max(0, Math.min(1, progress)) * 100)}%`;
+}
+
+function setStatus(message, kind = "info") {
+  ui.appStatus.textContent = message;
+  ui.appStatus.className = `status-message${kind === "error" ? " status-error" : ""}`;
+}
+
+function bindUpdateCheck() {
+  document.querySelector("#version-check").addEventListener("click", checkVersion);
+  checkVersion();
+}
+
+async function checkVersion() {
+  ui.updateNotice.hidden = false;
+  ui.updateNotice.textContent = "Verificando versão...";
+  try {
+    const response = await fetch(`${BASE_URL}version.json?check=${Date.now()}`, { cache: "no-store" });
+    if (!response.ok) throw new Error(`Resposta HTTP ${response.status}`);
+    const { version } = await response.json();
+    if (typeof version !== "string") throw new Error("Manifesto de versão inválido.");
+    if (version !== packageInfo.version) {
+      ui.updateNotice.textContent = `Há uma versão ${version} disponível. Atualize a página quando estiver online.`;
+      ui.updateNotice.classList.add("update-available");
+    } else {
+      ui.updateNotice.textContent = `Aplicação atualizada · versão ${packageInfo.version}.`;
+      ui.updateNotice.classList.remove("update-available");
+    }
+  } catch (error) {
+    ui.updateNotice.textContent = `Não foi possível verificar atualizações: ${error.message}`;
+  }
+}
+
+async function registerServiceWorker() {
+  if (import.meta.env.DEV || !("serviceWorker" in navigator) || location.protocol === "file:") return;
+  try {
+    updateRegistration = await navigator.serviceWorker.register(`${BASE_URL}service-worker.js`);
+    await updateRegistration.update();
+    if (updateRegistration.waiting) showUpdateAction();
+    updateRegistration.addEventListener("updatefound", () => {
+      const worker = updateRegistration.installing;
+      worker?.addEventListener("statechange", () => {
+        if (worker.state === "installed" && navigator.serviceWorker.controller) showUpdateAction();
+      });
+    });
+  } catch (error) {
+    ui.updateNotice.hidden = false;
+    ui.updateNotice.textContent = `O modo offline não pôde ser ativado: ${error.message}`;
+  }
+}
+
+function showUpdateAction() {
+  ui.updateNotice.hidden = false;
+  ui.updateNotice.classList.add("update-available");
+  ui.updateNotice.replaceChildren(document.createTextNode("Uma atualização do aplicativo está pronta. "));
+  const button = document.createElement("button");
+  button.className = "text-button";
+  button.type = "button";
+  button.textContent = "Atualizar agora";
+  button.addEventListener("click", () => {
+    updateRegistration?.waiting?.postMessage({ type: "SKIP_WAITING" });
+    navigator.serviceWorker.addEventListener("controllerchange", () => location.reload(), { once: true });
+  });
+  ui.updateNotice.append(button);
+}
+
+function bindInstallPrompt() {
+  const button = document.querySelector("#install-button");
+  window.addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    installPrompt = event;
+    button.hidden = false;
+  });
+  button.addEventListener("click", async () => {
+    if (!installPrompt) return;
+    await installPrompt.prompt();
+    await installPrompt.userChoice;
+    installPrompt = null;
+    button.hidden = true;
+  });
+  window.addEventListener("appinstalled", () => {
+    button.hidden = true;
+    setStatus("Aplicação instalada. Prepare o OCR online antes do primeiro uso offline.");
+  });
+}
