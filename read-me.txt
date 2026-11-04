@@ -22,7 +22,8 @@ TESTES E BUILD
 
 O build gera a pasta dist. O workflow em .github/workflows/pages.yml publica
 esse conteudo no GitHub Pages quando ha um push para main. Em Settings >
-Pages, selecione GitHub Actions como origem de publicacao.
+Pages, habilite a publicacao e selecione GitHub Actions como origem antes do
+primeiro push que executa o workflow.
 
 PRIVACIDADE E USO OFFLINE
 
