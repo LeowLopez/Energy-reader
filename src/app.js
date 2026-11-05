@@ -127,7 +127,7 @@ function setSelectedFile(file) {
   ui.processButton.disabled = false;
   ui.resultState.textContent = "Pronto para analisar";
   ui.resultState.className = "state-pill";
-  setStatus("Arquivo selecionado. Ele será processado apenas neste navegador.");
+  setStatus("Arquivo selecionado. A leitura será feita neste navegador, sem enviar a fatura.");
 }
 
 async function processSelectedFile() {
@@ -140,10 +140,19 @@ async function processSelectedFile() {
     if (!lines.length) throw new Error("Não foi possível reconhecer texto ou imagem legível neste PDF.");
     const result = extractInvoice(lines, currentConfig);
     renderResults(result);
-    ui.resultState.textContent = "Revisão necessária";
-    ui.resultState.className = "state-pill state-review";
-    const found = Object.values(result.fields).filter((field) => field.value !== null).length;
-    setStatus(`Leitura concluída. ${found} de ${FIELD_DEFINITIONS.length} campos numéricos foram localizados; confira os trechos antes de copiar.`);
+    const measurementCount = FIELD_DEFINITIONS.filter((field) => field.measure).length;
+    const extracted = FIELD_DEFINITIONS
+      .filter((definition) => definition.measure && result.fields[definition.id].status === "review").length;
+    const missing = Object.values(result.fields).filter((field) => field.value === null).length;
+    ui.resultState.textContent = extracted === 0 ? "Medições não localizadas" : missing ? "Leitura parcial" : "Pronto para revisar";
+    ui.resultState.className = extracted === 0 ? "state-pill state-error" : missing ? "state-pill state-review" : "state-pill state-ready";
+    if (extracted === 0) {
+      setStatus(`Não encontramos medições do medidor ${currentConfig.meterNumber}. Confira se a fatura é da unidade configurada e se a tabela está legível.`, "error");
+    } else {
+      const missingMessage = missing ? ` ${missing} campo(s) ficaram sem valor; preencha apenas depois de conferir a fatura.` : "";
+      const total = result.fields.valor_bruto.status === "review" ? " O valor bruto também foi localizado." : "";
+      setStatus(`${extracted} de ${measurementCount} medições foram localizadas nas linhas do medidor ${currentConfig.meterNumber}.${total}${missingMessage} Confira os valores e a linha de origem antes de copiar.`);
+    }
   } catch (error) {
     ui.resultState.textContent = "Leitura não concluída";
     ui.resultState.className = "state-pill state-error";
@@ -260,29 +269,39 @@ function renderResults(result) {
     input.id = `result-${definition.id}`;
     input.className = "result-input";
     input.type = "text";
-    input.inputMode = definition.kind === "currency" ? "decimal" : "decimal";
+    input.inputMode = "decimal";
     input.autocomplete = "off";
     input.spellcheck = false;
     input.value = field.value === null ? "" : formatFieldValue(field.value, definition.kind);
-    input.placeholder = "Não localizado — informe ou ajuste as regras";
+    input.placeholder = "Não localizado — confira a fatura";
     input.setAttribute("aria-label", `${definition.label}; revise ou edite o valor`);
     input.addEventListener("input", () => {
       card.classList.toggle("manual-entry", input.value.length > 0);
       card.classList.toggle("missing-result", input.value.length === 0);
+      fieldStatus.className = `field-status ${input.value.trim() ? "field-status-manual" : "field-status-missing"}`;
+      fieldStatus.textContent = input.value.trim()
+        ? "Valor preenchido manualmente · confira antes de copiar"
+        : "Não encontrado · confira a fatura";
     });
-    content.append(label, input);
+    const fieldStatus = document.createElement("span");
+    fieldStatus.className = `field-status field-status-${field.status}`;
+    fieldStatus.textContent = field.status === "review"
+      ? "Encontrado na fatura · confira a origem"
+      : "Não encontrado · confira a fatura";
+    content.append(label, input, fieldStatus);
     const copy = document.createElement("button");
     copy.className = "copy-button";
     copy.type = "button";
-    copy.textContent = "Copiar";
+    copy.textContent = "Copiar valor";
     copy.setAttribute("aria-label", `Copiar ${definition.label}`);
+    copy.setAttribute("aria-live", "polite");
     copy.addEventListener("click", () => copyField(input, copy));
     const origin = document.createElement("details");
     origin.className = "source-detail";
     const summary = document.createElement("summary");
-    summary.textContent = field.status === "fixed" ? "Valor fixo nas regras" : field.sourceLine ? "Ver trecho identificado" : "Sem trecho identificado";
+    summary.textContent = "Ver linha de origem";
     const source = document.createElement("pre");
-    source.textContent = field.sourceLine || "Nenhum trecho correspondente foi encontrado.";
+    source.textContent = field.sourceLine || `Nenhuma linha do medidor ${currentConfig.meterNumber} correspondeu a este campo.`;
     origin.append(summary, source);
     card.append(content, copy, origin);
     if (field.value === null) card.classList.add("missing-result");
@@ -324,7 +343,9 @@ async function copyField(input, button) {
   try {
     await navigator.clipboard.writeText(value);
     button.textContent = "Copiado";
-    setTimeout(() => { button.textContent = "Copiar"; }, 1600);
+    button.setAttribute("aria-label", "Valor copiado");
+    setTimeout(() => { button.textContent = "Copiar valor"; }, 1600);
+    setTimeout(() => { button.setAttribute("aria-label", `Copiar ${input.getAttribute("aria-label").split(";")[0]}`); }, 1600);
   } catch (error) {
     setStatus(`Não foi possível copiar automaticamente: ${error.message}. Selecione e copie o valor manualmente.`, "error");
   }
@@ -332,62 +353,26 @@ async function copyField(input, button) {
 
 function renderConfig() {
   ui.configFields.replaceChildren();
-  for (const definition of FIELD_DEFINITIONS) {
-    const rule = currentConfig.fields[definition.id];
-    const card = document.createElement("fieldset");
-    card.className = "config-card";
-    const legend = document.createElement("legend");
-    legend.textContent = definition.label;
-    const termsLabel = document.createElement("label");
-    termsLabel.className = "form-label";
-    termsLabel.textContent = "Termos da linha (um por linha)";
-    const terms = document.createElement("textarea");
-    terms.rows = 3;
-    terms.value = rule.aliases.join("\n");
-    terms.dataset.field = definition.id;
-    terms.dataset.property = "aliases";
-    termsLabel.append(terms);
-    const controls = document.createElement("div");
-    controls.className = "config-controls";
-    const operationLabel = document.createElement("label");
-    operationLabel.className = "form-label";
-    operationLabel.textContent = "Como combinar";
-    const operation = document.createElement("select");
-    operation.dataset.field = definition.id;
-    operation.dataset.property = "operation";
-    for (const [value, text] of [["first", "Primeiro resultado"], ["last", "Último resultado"], ["sum", "Somar resultados"]]) {
-      const option = new Option(text, value);
-      operation.add(option);
-    }
-    operation.value = rule.operation;
-    operationLabel.append(operation);
-    const indexLabel = document.createElement("label");
-    indexLabel.className = "form-label";
-    indexLabel.textContent = "Posição do número";
-    const numberIndex = document.createElement("input");
-    numberIndex.type = "number";
-    numberIndex.min = "-1";
-    numberIndex.max = "50";
-    numberIndex.step = "1";
-    numberIndex.value = rule.valueIndex;
-    numberIndex.dataset.field = definition.id;
-    numberIndex.dataset.property = "valueIndex";
-    indexLabel.append(numberIndex);
-    controls.append(operationLabel, indexLabel);
-    const fixedLabel = document.createElement("label");
-    fixedLabel.className = "form-label fixed-value-label";
-    fixedLabel.textContent = "Valor fixo (opcional)";
-    const fixedValue = document.createElement("input");
-    fixedValue.type = "text";
-    fixedValue.inputMode = "decimal";
-    fixedValue.placeholder = "Em branco para extrair do PDF";
-    fixedValue.value = rule.fixedValue ?? "";
-    fixedValue.dataset.field = definition.id;
-    fixedValue.dataset.property = "fixedValue";
-    fixedLabel.append(fixedValue);
-    card.append(legend, termsLabel, controls, fixedLabel);
-    ui.configFields.append(card);
-  }
+  const measurementCard = document.createElement("fieldset");
+  measurementCard.className = "config-card";
+  const measurementLegend = document.createElement("legend");
+  measurementLegend.textContent = "Unidade consumidora";
+  const meterLabel = document.createElement("label");
+  meterLabel.className = "form-label";
+  meterLabel.textContent = "Número do medidor";
+  const meterInput = document.createElement("input");
+  meterInput.type = "text";
+  meterInput.inputMode = "numeric";
+  meterInput.autocomplete = "off";
+  meterInput.value = currentConfig.meterNumber;
+  meterInput.dataset.meterNumber = "";
+  meterLabel.append(meterInput);
+  const meterHelp = document.createElement("p");
+  meterHelp.className = "config-help";
+  meterHelp.textContent = "Só são consideradas linhas que começam com este número. Isso evita confundir as leituras de outros medidores na mesma fatura.";
+  measurementCard.append(measurementLegend, meterLabel, meterHelp);
+  ui.configFields.append(measurementCard);
+
   const infoCard = document.createElement("fieldset");
   infoCard.className = "config-card config-card-info";
   const legend = document.createElement("legend");
@@ -410,13 +395,7 @@ function renderConfig() {
 
 function readConfigForm() {
   const config = structuredClone(currentConfig);
-  document.querySelectorAll("[data-field]").forEach((input) => {
-    const rule = config.fields[input.dataset.field];
-    const property = input.dataset.property;
-    if (property === "aliases") rule.aliases = input.value.split(/\r?\n/).map((term) => term.trim()).filter(Boolean);
-    else if (property === "valueIndex") rule.valueIndex = Number(input.value);
-    else rule[property] = input.value;
-  });
+  config.meterNumber = document.querySelector("[data-meter-number]").value.trim();
   document.querySelectorAll("[data-info]").forEach((input) => {
     config.info[input.dataset.info].aliases = input.value.split(/\r?\n/).map((term) => term.trim()).filter(Boolean);
   });

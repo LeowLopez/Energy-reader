@@ -39,19 +39,27 @@ PRIVACIDADE E USO OFFLINE
 - A instalacao PWA e o cache offline nao estao disponiveis ao abrir os arquivos
   diretamente como file://.
 
-CONFIGURACAO
+CONFIGURACAO E CRITERIOS DE LEITURA
 
-A tela Configuracao permite ajustar os termos identificadores, a posicao do
-numero na linha, a operacao (primeiro, ultimo ou soma) e valores fixos. As regras
-ficam no armazenamento local do navegador; use Exportar regras para fazer
-backup ou transferi-las para outro dispositivo.
+As medicoes sao identificadas pelo numero do medidor, pela grandeza (ENRG ATV,
+DEMANDA ou ENRG RTV) e pelo posto horario. Em linhas de medicao, o leitor ignora
+os tres numeros de registro e usa o valor seguinte, como no Extrator-Enel.
+Consumo fora de ponta soma as linhas correspondentes; os demais campos usam a
+primeira correspondencia. Linhas de outros medidores sao ignoradas.
+
+A tela Configuracao permite informar o numero do medidor. Demandas contratadas
+sao extraidas apenas quando aparecem identificadas na fatura; se nao forem
+localizadas, permanecem vazias. Os ajustes ficam no armazenamento local do
+navegador; use Exportar regras para fazer backup ou transferi-las para outro
+dispositivo. As regras de identificacao das medicoes sao fixas para evitar
+selecionar numeros incorretos.
 O seletor na barra superior alterna entre os temas claro e escuro e salva a
 preferencia neste navegador.
 
 CONFIANCA DOS RESULTADOS
 
 A leitura automatica e uma sugestao, nao uma garantia universal. Os formatos de
-fatura variam por distribuidora e pais. Confira os trechos de origem, revise
-valores e separadores decimais, e ajuste as regras quando um campo nao for
-localizado. Campos ausentes permanecem sem valor; nao sao convertidos em zero.
-PDFs protegidos, danificados ou de baixa qualidade podem nao ser processados.
+fatura podem variar. Confira os trechos de origem e revise valores e separadores
+decimais antes de copiar. Campos ausentes permanecem sem valor; nao sao
+convertidos em zero. PDFs protegidos, danificados ou de baixa qualidade podem
+nao ser processados.

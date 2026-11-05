@@ -1,69 +1,70 @@
 export const STORAGE_KEY = "energia-clara-rules-v1";
+export const DEFAULT_METER_NUMBER = "15787805";
 
 export const FIELD_DEFINITIONS = [
   {
     id: "consumo_fora_ponta",
     label: "Consumo Fora de Ponta (kWh)",
     kind: "number",
-    aliases: ["ENRG ATV F PONTA INDU", "ENRG ATV F PONTA"],
+    measure: "ENRG ATV",
+    posts: ["F PONTA", "F PONTA INDU"],
     operation: "sum",
-    valueIndex: 3,
   },
   {
     id: "consumo_na_ponta",
     label: "Consumo Na Ponta (kWh)",
     kind: "number",
-    aliases: ["ENRG ATV PONTA"],
+    measure: "ENRG ATV",
+    posts: ["PONTA"],
     operation: "first",
-    valueIndex: 3,
   },
   {
     id: "demanda_contratada_ponta",
     label: "Demanda Contratada Na Ponta (kW)",
     kind: "number",
-    aliases: ["DEMANDA CONTRATADA PONTA"],
+    measure: "DEMANDA CONTRATADA",
+    posts: ["PONTA"],
     operation: "first",
-    valueIndex: -1,
   },
   {
     id: "demanda_contratada_fora_ponta",
     label: "Demanda Contratada Fora de Ponta (kW)",
     kind: "number",
-    aliases: ["DEMANDA CONTRATADA FORA PONTA"],
+    measure: "DEMANDA CONTRATADA",
+    posts: ["FORA PONTA", "F PONTA"],
     operation: "first",
-    valueIndex: -1,
   },
   {
     id: "demanda_faturada_fora_ponta",
     label: "Demanda Faturada no Mês Fora de Ponta (kW)",
     kind: "number",
-    aliases: ["DEMANDA F PONTA INDU", "DEMANDA FORA PONTA"],
+    measure: "DEMANDA",
+    posts: ["F PONTA INDU"],
     operation: "first",
-    valueIndex: 3,
   },
   {
     id: "demanda_faturada_ponta",
     label: "Demanda Faturada no Mês Na Ponta (kW)",
     kind: "number",
-    aliases: ["DEMANDA F PONTA CAP", "DEMANDA PONTA"],
+    measure: "DEMANDA",
+    posts: ["F PONTA CAP"],
     operation: "first",
-    valueIndex: 3,
   },
   {
     id: "energia_reativa_fora_ponta",
     label: "Energia Reativa no Mês Fora de Ponta (kVArh)",
     kind: "number",
-    aliases: ["ENRG RTV F PONTA INDU", "ENRG RTV FORA PONTA"],
+    measure: "ENRG RTV",
+    posts: ["F PONTA INDU"],
     operation: "first",
-    valueIndex: 3,
   },
   {
     id: "energia_reativa_ponta",
     label: "Energia Reativa no Mês Na Ponta (kVArh)",
     kind: "number",
-    aliases: ["ENRG RTV PONTA"],
+    measure: "ENRG RTV",
+    posts: ["PONTA"],
     operation: "first",
-    valueIndex: 3,
   },
   {
     id: "valor_bruto",
@@ -73,6 +74,18 @@ export const FIELD_DEFINITIONS = [
     operation: "first",
     valueIndex: -1,
   },
+];
+
+const LEGACY_FIELD_IDS = [
+  "consumo_fora_ponta",
+  "consumo_na_ponta",
+  "demanda_contratada_ponta",
+  "demanda_contratada_fora_ponta",
+  "demanda_faturada_fora_ponta",
+  "demanda_faturada_ponta",
+  "energia_reativa_fora_ponta",
+  "energia_reativa_ponta",
+  "valor_bruto",
 ];
 
 export const INFO_DEFINITIONS = [
@@ -92,36 +105,25 @@ export function normalizeText(value) {
 
 export function createDefaultConfig() {
   return {
-    version: 1,
-    fields: Object.fromEntries(
-      FIELD_DEFINITIONS.map(({ id, aliases, operation, valueIndex }) => [
-        id,
-        { aliases: [...aliases], operation, valueIndex, fixedValue: "" },
-      ]),
-    ),
+    version: 3,
+    meterNumber: DEFAULT_METER_NUMBER,
     info: Object.fromEntries(INFO_DEFINITIONS.map(({ id, aliases }) => [id, { aliases: [...aliases] }])),
   };
 }
 
 export function validateConfig(config) {
-  if (!config || config.version !== 1 || typeof config.fields !== "object" || typeof config.info !== "object") {
+  if (!config || typeof config !== "object") {
     throw new Error("O arquivo não contém uma configuração compatível.");
   }
-  for (const field of FIELD_DEFINITIONS) {
-    const rule = config.fields[field.id];
-    if (!rule || !Array.isArray(rule.aliases) || !["first", "last", "sum"].includes(rule.operation)) {
-      throw new Error(`Regra inválida para "${field.label}".`);
-    }
-    if (!Number.isInteger(rule.valueIndex) || rule.valueIndex < -1 || rule.valueIndex > 50) {
-      throw new Error(`Posição numérica inválida para "${field.label}".`);
-    }
-    if (rule.fixedValue !== "" && !Number.isFinite(Number(rule.fixedValue))) {
-      throw new Error(`Valor fixo inválido para "${field.label}".`);
-    }
-    if (rule.aliases.some((alias) => typeof alias !== "string")) {
-      throw new Error(`Os termos de busca de "${field.label}" precisam ser textos.`);
-    }
+  if (config.version === 1) config = migrateLegacyConfig(config);
+  else if (config.version === 2) config = migrateVersionTwoConfig(config);
+  if (config.version !== 3 || !config.info || typeof config.info !== "object") {
+    throw new Error("O arquivo não contém uma configuração compatível.");
   }
+  if (typeof config.meterNumber !== "string" || !/^\d{1,30}$/.test(config.meterNumber.trim())) {
+    throw new Error("Informe um número de medidor formado apenas por dígitos.");
+  }
+  if (config.meterNumber !== config.meterNumber.trim()) config = { ...config, meterNumber: config.meterNumber.trim() };
   for (const info of INFO_DEFINITIONS) {
     if (!config.info[info.id] || !Array.isArray(config.info[info.id].aliases) ||
       config.info[info.id].aliases.some((alias) => typeof alias !== "string")) {
@@ -129,6 +131,45 @@ export function validateConfig(config) {
     }
   }
   return config;
+}
+
+function migrateLegacyConfig(config) {
+  if (!config.fields || !config.info || typeof config.fields !== "object" || typeof config.info !== "object") {
+    throw new Error("O arquivo não contém uma configuração compatível.");
+  }
+  for (const id of LEGACY_FIELD_IDS) {
+    const rule = config.fields[id];
+    if (!rule || !Array.isArray(rule.aliases) || !["first", "last", "sum"].includes(rule.operation) ||
+      !Number.isInteger(rule.valueIndex) || rule.valueIndex < -1 || rule.valueIndex > 50 ||
+      rule.aliases.some((alias) => typeof alias !== "string")) {
+      throw new Error(`Regra inválida para "${id}".`);
+    }
+  }
+  const migrated = createDefaultConfig();
+  for (const definition of INFO_DEFINITIONS) {
+    const aliases = config.info[definition.id]?.aliases;
+    if (!Array.isArray(aliases) || aliases.some((alias) => typeof alias !== "string")) {
+      throw new Error(`Regra inválida para "${definition.label}".`);
+    }
+    migrated.info[definition.id].aliases = [...aliases];
+  }
+  return migrated;
+}
+
+function migrateVersionTwoConfig(config) {
+  if (typeof config.meterNumber !== "string" || !config.info || typeof config.info !== "object") {
+    throw new Error("O arquivo não contém uma configuração compatível.");
+  }
+  const migrated = createDefaultConfig();
+  migrated.meterNumber = config.meterNumber;
+  for (const definition of INFO_DEFINITIONS) {
+    const aliases = config.info[definition.id]?.aliases;
+    if (!Array.isArray(aliases) || aliases.some((alias) => typeof alias !== "string")) {
+      throw new Error(`Regra inválida para "${definition.label}".`);
+    }
+    migrated.info[definition.id].aliases = [...aliases];
+  }
+  return migrated;
 }
 
 export function parseLocalizedNumber(value) {
@@ -162,6 +203,91 @@ function findMatchingLines(lines, aliases) {
     })
     .filter(Boolean)
     .sort((left, right) => right.matchedAlias.length - left.matchedAlias.length || left.index - right.index);
+}
+
+function isNumericToken(token) {
+  return /^-?\d+(?:[.,]\d+)*$/.test(token);
+}
+
+export function parseMeasurementLine(line, meterNumber = DEFAULT_METER_NUMBER, index = 0) {
+  const parts = String(line).trim().split(/\s+/);
+  if (!parts[0]?.startsWith(meterNumber)) return null;
+
+  let cursor = 1;
+  const measureParts = [];
+  while (cursor < parts.length && parts[cursor] !== "PONTA" && parts[cursor] !== "F") {
+    measureParts.push(parts[cursor]);
+    cursor += 1;
+  }
+  if (cursor === parts.length || measureParts.length === 0) return null;
+
+  const postParts = [];
+  while (cursor < parts.length && !isNumericToken(parts[cursor])) {
+    postParts.push(parts[cursor]);
+    cursor += 1;
+  }
+  if (!postParts.length) return null;
+
+  let skippedReadings = 0;
+  while (cursor < parts.length && skippedReadings < 3) {
+    if (isNumericToken(parts[cursor])) skippedReadings += 1;
+    cursor += 1;
+  }
+  if (skippedReadings !== 3 || cursor >= parts.length || !isNumericToken(parts[cursor])) return null;
+
+  const value = parseLocalizedNumber(parts[cursor]);
+  if (value === null || value <= 0) return null;
+  return {
+    measure: measureParts.join(" "),
+    post: postParts.join(" "),
+    value,
+    sourceLine: String(line),
+    index,
+  };
+}
+
+function extractMeasurementField(measurements, definition) {
+  const measure = normalizeText(definition.measure);
+  const posts = definition.posts.map(normalizeText);
+  const matches = measurements.filter((item) => {
+    const normalizedPost = normalizeText(item.post);
+    return normalizeText(item.measure).includes(measure) &&
+      posts.some((post) => normalizedPost === post || normalizedPost.startsWith(`${post} `));
+  });
+  if (!matches.length) return { value: null, sourceLine: "", status: "missing" };
+  const selected = definition.operation === "sum" ? matches : matches.slice(0, 1);
+  return {
+    value: selected.reduce((total, item) => total + item.value, 0),
+    sourceLine: selected.map((item) => item.sourceLine).join("\n"),
+    status: "review",
+  };
+}
+
+function extractContractedDemand(lines, measurements, definition) {
+  const label = normalizeText("DEMANDA CONTRATADA");
+  const matchesPost = (sourceLine) => {
+    const normalized = normalizeText(sourceLine);
+    const labelIndex = normalized.indexOf(label);
+    if (labelIndex < 0) return false;
+    const remainder = normalized.slice(labelIndex + label.length);
+    const isOutsidePeak = /\b(?:FORA(?: DE)? PONTA|F PONTA)\b/.test(remainder);
+    const isPeak = /\bPONTA\b/.test(remainder) && !isOutsidePeak;
+    return definition.id === "demanda_contratada_fora_ponta" ? isOutsidePeak : isPeak;
+  };
+  const meterMeasurement = measurements.find((item) =>
+    normalizeText(item.measure).includes(label) && matchesPost(item.sourceLine),
+  );
+  if (meterMeasurement) {
+    return { value: meterMeasurement.value, sourceLine: meterMeasurement.sourceLine, status: "review" };
+  }
+
+  const match = lines.find(matchesPost);
+  if (!match) return { value: null, sourceLine: "", status: "missing" };
+  const labelMatch = match.match(/DEMANDA\s+CONTRATADA/i);
+  const value = extractNumberCandidates(match.slice((labelMatch?.index ?? 0) + label.length)).at(-1);
+  return value === undefined
+    ? { value: null, sourceLine: "", status: "missing" }
+    : { value, sourceLine: match, status: "review" };
 }
 
 export function extractConfiguredField(lines, rule) {
@@ -208,11 +334,21 @@ function extractInfo(lines, definition, rule) {
 }
 
 export function extractInvoice(lines, config) {
-  validateConfig(config);
-  const fields = Object.fromEntries(FIELD_DEFINITIONS.map((definition) => [
-    definition.id,
-    { ...extractConfiguredField(lines, config.fields[definition.id]), kind: definition.kind },
-  ]));
+  config = validateConfig(config);
+  const measurements = lines
+    .map((line, index) => parseMeasurementLine(line, config.meterNumber, index))
+    .filter(Boolean);
+  const fields = Object.fromEntries(FIELD_DEFINITIONS.map((definition) => {
+    let result;
+    if (definition.id === "demanda_contratada_ponta" || definition.id === "demanda_contratada_fora_ponta") {
+      result = extractContractedDemand(lines, measurements, definition);
+    } else if (definition.measure) {
+      result = extractMeasurementField(measurements, definition);
+    } else {
+      result = extractConfiguredField(lines, definition);
+    }
+    return [definition.id, { ...result, kind: definition.kind }];
+  }));
   const info = Object.fromEntries(INFO_DEFINITIONS.map((definition) => [
     definition.id,
     extractInfo(lines, definition, config.info[definition.id]),
