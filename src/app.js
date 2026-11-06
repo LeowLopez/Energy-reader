@@ -34,6 +34,7 @@ const ui = {
   tariffFlag: document.querySelector("#tariff-flag"),
   configFields: document.querySelector("#config-fields"),
   configStatus: document.querySelector("#config-status"),
+  updateNotice: document.querySelector("#update-notice"),
 };
 
 let selectedFile = null;
@@ -505,10 +506,49 @@ function setStatus(message, kind = "info") {
 async function registerServiceWorker() {
   if (import.meta.env.DEV || !("serviceWorker" in navigator) || location.protocol === "file:") return;
   try {
-    await navigator.serviceWorker.register(`${BASE_URL}service-worker.js`);
+    const registration = await navigator.serviceWorker.register(`${BASE_URL}service-worker.js`);
+    const showWaitingUpdate = () => {
+      if (registration.waiting && navigator.serviceWorker.controller) showUpdateAction(registration);
+    };
+    const observeInstallingWorker = (worker) => {
+      worker?.addEventListener("statechange", () => {
+        if (worker.state === "installed") showWaitingUpdate();
+      });
+    };
+    registration.addEventListener("updatefound", () => observeInstallingWorker(registration.installing));
+    observeInstallingWorker(registration.installing);
+    showWaitingUpdate();
+    try {
+      await registration.update();
+    } catch (error) {
+      if (navigator.onLine) {
+        setStatus(`Não foi possível verificar atualizações: ${error.message}`, "error");
+      }
+    }
+    showWaitingUpdate();
   } catch (error) {
     setStatus(`O modo offline não pôde ser ativado: ${error.message}`, "error");
   }
+}
+
+function showUpdateAction(registration) {
+  ui.updateNotice.hidden = false;
+  ui.updateNotice.replaceChildren(document.createTextNode("Uma atualização do aplicativo está pronta. "));
+  const button = document.createElement("button");
+  button.className = "text-button";
+  button.type = "button";
+  button.textContent = "Atualizar agora";
+  button.addEventListener("click", () => {
+    const waitingWorker = registration.waiting;
+    if (!waitingWorker) {
+      ui.updateNotice.textContent = "A atualização já foi aplicada. Recarregue o aplicativo para continuar.";
+      return;
+    }
+    button.disabled = true;
+    navigator.serviceWorker.addEventListener("controllerchange", () => location.reload(), { once: true });
+    waitingWorker.postMessage({ type: "SKIP_WAITING" });
+  });
+  ui.updateNotice.append(button);
 }
 
 function bindInstallPrompt() {

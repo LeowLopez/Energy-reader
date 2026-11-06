@@ -53,15 +53,15 @@ fazer backup ou transferi-las para outro dispositivo.
 A aplicação pode ser instalada pelo Edge ou Chrome quando aberta pela página
 publicada em HTTPS. O navegador verifica atualizações do service worker quando
 há conexão, por exemplo ao abrir o app ou visitar o site, e baixa a nova versão
-em segundo plano. Seguindo o ciclo padrão do navegador, a versão nova é ativada
-depois que as janelas abertas do app antigo forem fechadas. Sem internet, o app
-usa a última versão armazenada em cache e verifica atualizações quando voltar a
-ficar online. Para leitura de PDFs digitalizados offline, acesse a aplicação e
-prepare o OCR online antes de desconectar. Instalação PWA e cache offline não
-estão disponíveis ao abrir os arquivos diretamente via `file://`.
+em segundo plano. Quando uma versão está pronta, o app oferece **Atualizar
+agora**; ao clicar, ativa a versão nova e recarrega a página. Sem internet, o
+app usa a última versão armazenada em cache e verifica atualizações quando
+voltar a ficar online. Para leitura de PDFs digitalizados offline, acesse a
+aplicação e prepare o OCR online antes de desconectar. Instalação PWA e cache
+offline não estão disponíveis ao abrir os arquivos diretamente via `file://`.
 
 Faturas variam de formato, e a leitura automática não garante resultados
 universais. PDFs protegidos, danificados ou de baixa qualidade podem não ser
 processados corretamente.
 
-Consulte o [tutorial](./tutorial.html) para mais instruções.
+Consulte o [tutorial](https://leowlopez.github.io/ExtraiConta/tutorial.html) para mais instruções.
