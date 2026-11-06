@@ -61,6 +61,7 @@ a:hover { color: #a0f1e4; }
 .theme-icon { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 :root[data-theme="dark"] .icon-moon, :root[data-theme="light"] .icon-sun { display: none; }
 .privacy-chip { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; color: #b3c9ce; font: 12px var(--mono); }
+.privacy-chip[hidden], .privacy-strip[hidden] { display: none; }
 .privacy-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--cyan); box-shadow: 0 0 10px rgba(81, 214, 195, .8); }
 
 .hero { position: relative; min-height: 230px; display: flex; align-items: center; justify-content: space-between; overflow: hidden; }

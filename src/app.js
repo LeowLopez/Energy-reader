@@ -34,15 +34,20 @@ const ui = {
   tariffFlag: document.querySelector("#tariff-flag"),
   configFields: document.querySelector("#config-fields"),
   configStatus: document.querySelector("#config-status"),
+  privacyChip: document.querySelector(".privacy-chip"),
+  privacyStrip: document.querySelector(".privacy-strip"),
   updateNotice: document.querySelector("#update-notice"),
 };
 
+const installedApp = isInstalledApp();
 let selectedFile = null;
 let currentConfig = loadConfig();
 let ocrWorkerPromise = null;
 let installPrompt = null;
 
 document.querySelector("#app-version").textContent = `VERSÃO ${packageInfo.version}`;
+ui.privacyChip.hidden = !installedApp;
+ui.privacyStrip.hidden = !installedApp;
 renderConfig();
 bindNavigation();
 bindFileSelection();
@@ -503,12 +508,17 @@ function setStatus(message, kind = "info") {
   ui.appStatus.className = `status-message${kind === "error" ? " status-error" : ""}`;
 }
 
+function isInstalledApp() {
+  const displayModes = ["standalone", "minimal-ui", "fullscreen", "window-controls-overlay", "tabbed"];
+  return displayModes.some((mode) => matchMedia(`(display-mode: ${mode})`).matches) || navigator.standalone === true;
+}
+
 async function registerServiceWorker() {
   if (import.meta.env.DEV || !("serviceWorker" in navigator) || location.protocol === "file:") return;
   try {
     const registration = await navigator.serviceWorker.register(`${BASE_URL}service-worker.js`);
     const showWaitingUpdate = () => {
-      if (registration.waiting && navigator.serviceWorker.controller) showUpdateAction(registration);
+      if (installedApp && registration.waiting && navigator.serviceWorker.controller) showUpdateAction(registration);
     };
     const observeInstallingWorker = (worker) => {
       worker?.addEventListener("statechange", () => {
@@ -553,8 +563,7 @@ function showUpdateAction(registration) {
 
 function bindInstallPrompt() {
   const button = document.querySelector("#install-button");
-  const isInstalled = matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  if (isInstalled) return;
+  if (installedApp) return;
   button.hidden = false;
   button.textContent = "Instalar";
 
