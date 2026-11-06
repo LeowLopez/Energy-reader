@@ -1,7 +1,7 @@
 {
   "id": "./",
-  "name": "Energia Clara — Leitor de Faturas",
-  "short_name": "Energia Clara",
+  "name": "ExtraiConta — Leitor de Faturas",
+  "short_name": "ExtraiConta",
   "description": "Leitura local e offline de faturas de energia.",
   "lang": "pt-BR",
   "start_url": "./index.html",

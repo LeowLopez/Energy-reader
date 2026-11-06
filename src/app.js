@@ -426,7 +426,7 @@ function bindConfigurationActions() {
   document.querySelector("#export-config").addEventListener("click", () => {
     try {
       const config = readConfigForm();
-      downloadJson(config, "energia-clara-regras.json");
+      downloadJson(config, "extraiconta-regras.json");
       ui.configStatus.textContent = "Arquivo de regras exportado.";
       ui.configStatus.className = "status-message status-success";
     } catch (error) {

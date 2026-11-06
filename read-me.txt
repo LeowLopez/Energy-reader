@@ -1,4 +1,4 @@
-ENERGIA CLARA - LEITOR DE FATURAS
+EXTRAICONTA - LEITOR DE FATURAS
 
 Aplicacao web estatica para leitura local de faturas de energia. A fatura,
 os resultados e as regras nao sao enviados a um servidor. O site consulta a
