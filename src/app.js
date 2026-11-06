@@ -34,21 +34,18 @@ const ui = {
   tariffFlag: document.querySelector("#tariff-flag"),
   configFields: document.querySelector("#config-fields"),
   configStatus: document.querySelector("#config-status"),
-  updateNotice: document.querySelector("#update-notice"),
 };
 
 let selectedFile = null;
 let currentConfig = loadConfig();
 let ocrWorkerPromise = null;
 let installPrompt = null;
-let updateRegistration = null;
 
 document.querySelector("#app-version").textContent = `VERSÃO ${packageInfo.version}`;
 renderConfig();
 bindNavigation();
 bindFileSelection();
 bindConfigurationActions();
-bindUpdateCheck();
 bindInstallPrompt();
 registerServiceWorker();
 if (location.hash === "#configuracao") showView("settings");
@@ -505,61 +502,13 @@ function setStatus(message, kind = "info") {
   ui.appStatus.className = `status-message${kind === "error" ? " status-error" : ""}`;
 }
 
-function bindUpdateCheck() {
-  checkVersion();
-}
-
-async function checkVersion() {
-  ui.updateNotice.hidden = false;
-  ui.updateNotice.textContent = "Verificando versão...";
-  try {
-    const response = await fetch(`${BASE_URL}version.json?check=${Date.now()}`, { cache: "no-store" });
-    if (!response.ok) throw new Error(`Resposta HTTP ${response.status}`);
-    const { version } = await response.json();
-    if (typeof version !== "string") throw new Error("Manifesto de versão inválido.");
-    if (version !== packageInfo.version) {
-      ui.updateNotice.textContent = `Há uma versão ${version} disponível. Atualize a página quando estiver online.`;
-      ui.updateNotice.classList.add("update-available");
-    } else {
-      ui.updateNotice.textContent = `Aplicação atualizada · versão ${packageInfo.version}.`;
-      ui.updateNotice.classList.remove("update-available");
-    }
-  } catch (error) {
-    ui.updateNotice.textContent = `Não foi possível verificar atualizações: ${error.message}`;
-  }
-}
-
 async function registerServiceWorker() {
   if (import.meta.env.DEV || !("serviceWorker" in navigator) || location.protocol === "file:") return;
   try {
-    updateRegistration = await navigator.serviceWorker.register(`${BASE_URL}service-worker.js`);
-    await updateRegistration.update();
-    if (updateRegistration.waiting) showUpdateAction();
-    updateRegistration.addEventListener("updatefound", () => {
-      const worker = updateRegistration.installing;
-      worker?.addEventListener("statechange", () => {
-        if (worker.state === "installed" && navigator.serviceWorker.controller) showUpdateAction();
-      });
-    });
+    await navigator.serviceWorker.register(`${BASE_URL}service-worker.js`);
   } catch (error) {
-    ui.updateNotice.hidden = false;
-    ui.updateNotice.textContent = `O modo offline não pôde ser ativado: ${error.message}`;
+    setStatus(`O modo offline não pôde ser ativado: ${error.message}`, "error");
   }
-}
-
-function showUpdateAction() {
-  ui.updateNotice.hidden = false;
-  ui.updateNotice.classList.add("update-available");
-  ui.updateNotice.replaceChildren(document.createTextNode("Uma atualização do aplicativo está pronta. "));
-  const button = document.createElement("button");
-  button.className = "text-button";
-  button.type = "button";
-  button.textContent = "Atualizar agora";
-  button.addEventListener("click", () => {
-    updateRegistration?.waiting?.postMessage({ type: "SKIP_WAITING" });
-    navigator.serviceWorker.addEventListener("controllerchange", () => location.reload(), { once: true });
-  });
-  ui.updateNotice.append(button);
 }
 
 function bindInstallPrompt() {

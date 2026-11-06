@@ -147,9 +147,6 @@ h1, h2, p { margin-top: 0; }
 .privacy-strip strong { color: #d5e4e6; }
 .text-button { border: 0; padding: 5px; color: var(--cyan); background: transparent; font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap; }
 .text-button:hover { color: #a0f1e4; }
-.update-notice { margin-top: 9px; border: 1px solid var(--border); border-radius: 7px; padding: 9px 12px; color: var(--muted); font-size: 13px; }
-.update-notice.update-available { color: var(--amber); border-color: rgba(229, 186, 114, .25); }
-
 .view[hidden] { display: none; }
 .page-heading { padding: 34px 0 22px; }
 .page-heading h1 { font-size: clamp(30px, 4vw, 42px); }
@@ -176,7 +173,7 @@ h1, h2, p { margin-top: 0; }
 .ocr-panel { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 18px; }
 .ocr-panel .eyebrow { margin-bottom: 7px; }
 .ocr-panel h2 { font-size: 16px; }
-.site-footer { display: flex; justify-content: space-between; gap: 15px; margin-top: 28px; border-top: 1px solid var(--border); padding: 16px 0 20px; color: #718791; font: 11px var(--mono); letter-spacing: .08em; }
+.site-footer { display: flex; justify-content: space-between; gap: 15px; margin-top: 28px; border-top: 1px solid var(--border); padding: 16px 0 20px; color: #718791; font: 9px var(--mono); letter-spacing: .08em; }
 .footer-divider { padding: 0 5px; color: var(--cyan); }
 
 .tutorial-main { padding-top: 18px; }
@@ -260,7 +257,6 @@ h1, h2, p { margin-top: 0; }
 :root[data-theme="light"] .privacy-strip { border-color: rgba(8, 118, 107, .2); background: rgba(8, 118, 107, .04); }
 :root[data-theme="light"] .privacy-strip p { color: #3d565f; }
 :root[data-theme="light"] .privacy-strip strong { color: #172f38; }
-:root[data-theme="light"] .update-notice.update-available { border-color: rgba(133, 83, 0, .28); }
 :root[data-theme="light"] .config-card { background: rgba(255,255,255,.9); }
 :root[data-theme="light"] .config-card legend { color: #1c333c; }
 :root[data-theme="light"] .form-label textarea, :root[data-theme="light"] .form-label input, :root[data-theme="light"] .form-label select { border-color: rgba(38, 68, 79, .24); color: #172a33; background: #f8fbfc; }
