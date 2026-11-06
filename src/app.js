@@ -506,7 +506,6 @@ function setStatus(message, kind = "info") {
 }
 
 function bindUpdateCheck() {
-  document.querySelector("#version-check").addEventListener("click", checkVersion);
   checkVersion();
 }
 
@@ -568,7 +567,7 @@ function bindInstallPrompt() {
   const isInstalled = matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
   if (isInstalled) return;
   button.hidden = false;
-  button.textContent = "Como instalar";
+  button.textContent = "Instalar";
 
   window.addEventListener("beforeinstallprompt", (event) => {
     event.preventDefault();
@@ -590,13 +589,11 @@ function bindInstallPrompt() {
       const { outcome } = await prompt.userChoice;
       if (outcome === "accepted") {
         button.hidden = true;
-        setStatus("Instalação iniciada. Se o app não abrir automaticamente, procure ExtraiConta entre os aplicativos.");
+        setStatus("Instalação aceita. Procure ExtraiConta entre os aplicativos.");
       } else {
-        button.textContent = "Como instalar";
-        setStatus("Instalação cancelada. Para tentar novamente, use o menu do navegador e escolha “Instalar ExtraiConta”.");
+        setStatus("Instalação cancelada. Clique em Instalar para tentar novamente quando o navegador oferecer a opção.");
       }
     } catch (error) {
-      button.textContent = "Como instalar";
       setStatus(`Não foi possível abrir a instalação: ${error.message}. Tente pelo menu do navegador.`, "error");
     } finally {
       button.disabled = false;
