@@ -6,6 +6,8 @@ const APP_SHELL = [
   new URL("./tutorial.html", APP_ROOT).href,
   new URL("./manifest.webmanifest", APP_ROOT).href,
   new URL("./icon.svg", APP_ROOT).href,
+  new URL("./icon-192.png", APP_ROOT).href,
+  new URL("./icon-512.png", APP_ROOT).href,
 ];
 
 self.addEventListener("install", (event) => {

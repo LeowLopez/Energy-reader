@@ -565,20 +565,46 @@ function showUpdateAction() {
 
 function bindInstallPrompt() {
   const button = document.querySelector("#install-button");
+  const isInstalled = matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+  if (isInstalled) return;
+  button.hidden = false;
+  button.textContent = "Como instalar";
+
   window.addEventListener("beforeinstallprompt", (event) => {
     event.preventDefault();
     installPrompt = event;
+    button.textContent = "Instalar";
     button.hidden = false;
   });
   button.addEventListener("click", async () => {
-    if (!installPrompt) return;
-    await installPrompt.prompt();
-    await installPrompt.userChoice;
+    if (!installPrompt) {
+      setStatus("No Edge ou Chrome, abra o menu do navegador e escolha “Instalar ExtraiConta”. No iPhone/iPad, use Compartilhar > Adicionar à Tela de Início.");
+      return;
+    }
+
+    const prompt = installPrompt;
     installPrompt = null;
-    button.hidden = true;
+    button.disabled = true;
+    try {
+      await prompt.prompt();
+      const { outcome } = await prompt.userChoice;
+      if (outcome === "accepted") {
+        button.hidden = true;
+        setStatus("Instalação iniciada. Se o app não abrir automaticamente, procure ExtraiConta entre os aplicativos.");
+      } else {
+        button.textContent = "Como instalar";
+        setStatus("Instalação cancelada. Para tentar novamente, use o menu do navegador e escolha “Instalar ExtraiConta”.");
+      }
+    } catch (error) {
+      button.textContent = "Como instalar";
+      setStatus(`Não foi possível abrir a instalação: ${error.message}. Tente pelo menu do navegador.`, "error");
+    } finally {
+      button.disabled = false;
+    }
   });
   window.addEventListener("appinstalled", () => {
     button.hidden = true;
+    installPrompt = null;
     setStatus("Aplicação instalada. Prepare o OCR online antes do primeiro uso offline.");
   });
 }

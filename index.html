@@ -8,7 +8,7 @@
       name="description"
       content="Leitura local de faturas de energia, com revisão dos dados e funcionamento offline."
     />
-    <title>ExtraiConta | Leitor de faturas</title>
+    <title>ExtraiConta | Faturas de energia</title>
     <script>
       const savedTheme = localStorage.getItem("energia-clara-theme");
       document.documentElement.dataset.theme = savedTheme || (
@@ -59,17 +59,14 @@
           <div class="hero">
             <div class="hero-copy">
               <p class="eyebrow">LEITURA LOCAL DE PDF · ARQUIVOS NÃO ENVIADOS</p>
-              <h1 id="page-title">Extração de dados <span>da fatura.</span></h1>
+              <h1 id="page-title">Leitor de faturas <span>de energia.</span></h1>
               <p class="hero-description">
                 Selecione uma fatura em PDF, revise os campos identificados e copie os valores necessários.
               </p>
             </div>
             <div class="hero-mark" aria-hidden="true">
               <span class="hero-orbit orbit-one"></span>
-              <span class="hero-orbit orbit-two"></span>
-              <span class="hero-core"></span>
-              <span class="hero-cross cross-one"></span>
-              <span class="hero-cross cross-two"></span>
+              <img class="hero-logo" src="./icon.svg" alt="" />
             </div>
           </div>
 
