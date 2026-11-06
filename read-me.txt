@@ -48,11 +48,10 @@ Consumo fora de ponta soma as linhas correspondentes; os demais campos usam a
 primeira correspondencia. Linhas de outros medidores sao ignoradas.
 
 A tela Configuracao permite informar o numero do medidor. Demandas contratadas
-sao extraidas apenas quando aparecem identificadas na fatura; se nao forem
-localizadas, permanecem vazias. Os ajustes ficam no armazenamento local do
-navegador; use Exportar regras para fazer backup ou transferi-las para outro
-dispositivo. As regras de identificacao das medicoes sao fixas para evitar
-selecionar numeros incorretos.
+sao extraidas dos valores identificados na fatura. Os ajustes ficam no
+armazenamento local do navegador; use Exportar regras para fazer backup ou
+transferi-las para outro dispositivo. As regras de identificacao das medicoes
+sao fixas para evitar selecionar numeros incorretos.
 O seletor na barra superior alterna entre os temas claro e escuro e salva a
 preferencia neste navegador.
 

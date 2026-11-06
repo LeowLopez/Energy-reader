@@ -287,7 +287,9 @@ function renderResults(result) {
     fieldStatus.className = `field-status field-status-${field.status}`;
     fieldStatus.textContent = field.status === "review"
       ? "Encontrado na fatura · confira a origem"
-      : "Não encontrado · confira a fatura";
+      : field.status === "fixed"
+        ? "Valor fixo do script Python · confira a configuração"
+        : "Não encontrado · confira a fatura";
     content.append(label, input, fieldStatus);
     const copy = document.createElement("button");
     copy.className = "copy-button";

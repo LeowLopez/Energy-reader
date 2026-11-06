@@ -321,13 +321,14 @@ function extractInfo(lines, definition, rule) {
   if (!matches.length) return { value: "", sourceLine: "", status: "missing" };
   const sourceLine = matches[0].text;
   if (definition.id === "tariffFlag") {
-    const normalizedLine = normalizeText(sourceLine);
-    const matchedAlias = rule.aliases.map(normalizeText).filter(Boolean)
-      .sort((a, b) => b.length - a.length)
-      .find((alias) => normalizedLine.includes(alias));
-    const index = normalizedLine.indexOf(matchedAlias ?? "");
-    const value = sourceLine.slice(index + (matchedAlias?.length ?? 0)).replace(/^[\s:–—-]+/, "").trim();
-    return { value: value || "", sourceLine, status: value ? "review" : "missing" };
+    const normalizedLine = normalizeText(sourceLine).replace(/\*/g, "");
+    const appliedFlag = normalizedLine.match(/APLICADA(?:S)?(?:\s+NO\s+MES)?\s*[:\-]?\s*(.*)$/);
+    const flagContext = appliedFlag?.[1] ?? normalizedLine;
+    const flag = flagContext.match(/\b(ESCASSEZ\s+HIDRICA|VERMELHA(?:\s+PATAMAR\s+[12])?|AMARELA|VERDE)\b/);
+    const value = flag?.[1]
+      .toLocaleLowerCase("pt-BR")
+      .replace(/^\p{L}/u, (letter) => letter.toLocaleUpperCase("pt-BR")) ?? "";
+    return { value, sourceLine, status: value ? "review" : "missing" };
   }
   const date = sourceLine.match(/\b\d{1,2}[./-]\d{1,2}[./-]\d{2,4}\b/);
   return { value: date?.[0] ?? "", sourceLine, status: date ? "review" : "missing" };

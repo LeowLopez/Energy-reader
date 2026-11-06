@@ -33,19 +33,16 @@ test("parses Enel measurement rows after the meter, measure, post, and three reg
   assert.equal(parseMeasurementLine("15787805 ENRG ATV F PONTA INDU 10 20 1"), null);
 });
 
-test("reads contracted demand only from a labeled invoice line", () => {
+test("reads contracted demand values from the invoice", () => {
   const config = createDefaultConfig();
-  const missing = extractInvoice([], config);
-  assert.equal(missing.fields.demanda_contratada_ponta.value, null);
-  assert.equal(missing.fields.demanda_contratada_fora_ponta.value, null);
-
   const data = extractInvoice([
     "Demanda contratada Ponta: 360 kW",
-    "Demanda contratada Fora de Ponta: 350 kW",
+    "Demanda contratada Fora de Ponta: 420 kW",
   ], config);
   assert.equal(data.fields.demanda_contratada_ponta.value, 360);
   assert.equal(data.fields.demanda_contratada_ponta.status, "review");
-  assert.equal(data.fields.demanda_contratada_fora_ponta.value, 350);
+  assert.equal(data.fields.demanda_contratada_fora_ponta.value, 420);
+  assert.equal(data.fields.demanda_contratada_fora_ponta.status, "review");
 });
 
 test("filters by meter and matches each measurement using its measure and post", () => {
@@ -78,6 +75,13 @@ test("filters by meter and matches each measurement using its measure and post",
   assert.equal(data.info.issueDate.value, "01/10/2026");
   assert.equal(data.info.dueDate.value, "15/10/2026");
   assert.equal(data.info.tariffFlag.value, "Verde");
+});
+
+test("extracts the tariff flag instead of retaining its explanatory text or markdown", () => {
+  const data = extractInvoice([
+    "Bandeira tarifária**(s) tarifária(s) aplicada(s) no mês: AMARELA**",
+  ], createDefaultConfig());
+  assert.equal(data.info.tariffFlag.value, "Amarela");
 });
 
 test("migrates saved version 1 rules without keeping unreliable numeric positions", () => {
